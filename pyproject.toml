@@ -1,6 +1,6 @@
 [project]
 name = "gtfs-zone-feed-fetch"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.13"
 description = "Shared GTFS fetch, schedule store contract and zip facts for the gtfs.zone pipelines"
 license = "AGPL-3.0-or-later"
