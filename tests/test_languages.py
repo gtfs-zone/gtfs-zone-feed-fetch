@@ -53,3 +53,12 @@ def test_kana_readings_are_not_page_languages():
     assert feed_languages("ja", [], ["ja-Hrkt", "en", "ja-Latn"]) == FeedLanguages(
         "ja", ("ja", "en"), ("ja-Hrkt", "ja-Latn")
     )
+
+
+def test_unknown_codes_are_listed_not_offered():
+    assert feed_languages("", ["english"], ["xx-yy", "en"]) == FeedLanguages(
+        "en", ("en",), unknown=("english", "xx-yy")
+    )
+    assert feed_languages("english", ["fr"], []) == FeedLanguages(
+        "fr", ("fr",), unknown=("english",)
+    )

@@ -3,6 +3,7 @@ translations.txt. No I/O."""
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import cache
 
 from babel import Locale
 from babel.core import get_global, parse_locale
@@ -31,6 +32,8 @@ class FeedLanguages:
     # Readings of the feed's text in another script (`ja-Hrkt`, `ja-Latn`),
     # sorted.
     readings: tuple[str, ...] = ()
+    # Codes the feed gives that `normalize` does not understand, as given.
+    unknown: tuple[str, ...] = ()
 
 
 def is_reading(code: str) -> bool:
@@ -55,6 +58,15 @@ def normalize(code: str) -> str:
     return f"{language}-{script}" if script else language
 
 
+@cache
+def known(code: str) -> str | None:
+    """`normalize` of the code, None when it is not understood."""
+    try:
+        return normalize(code)
+    except ValueError:
+        return None
+
+
 def feed_languages(
     feed_lang: str, agency_langs: Iterable[str], translated: Iterable[str]
 ) -> FeedLanguages:
@@ -64,16 +76,26 @@ def feed_languages(
     translations.txt language, less readings (`ja-Hrkt`, `ja-Latn`), which go in
     `readings`. `agency_langs` and `translated` are the codes as the feed gives
     them, in order; empty ones are skipped (Hofbus and Kajaani have
-    translations.txt rows with every field empty)."""
-    agency = [normalize(code) for code in agency_langs if code]
-    translations = [normalize(code) for code in dict.fromkeys(translated) if code]
+    translations.txt rows with every field empty). Codes not understood are
+    left out and listed in `unknown`."""
+    agency_given = list(agency_langs)
+    translated_given = list(dict.fromkeys(translated))
+    unknown = tuple(
+        code
+        for code in dict.fromkeys([feed_lang, *agency_given, *translated_given])
+        if code and code.lower() != MULTIPLE and known(code) is None
+    )
+    agency = [code for given in agency_given if given and (code := known(given))]
+    translations = [
+        code for given in translated_given if given and (code := known(given))
+    ]
     if feed_lang.lower() == MULTIPLE:
         candidates = [*agency, *translations]
         if not candidates:
             raise ValueError("feed_lang is mul with no agency_lang or translations")
         default = candidates[0]
-    elif feed_lang:
-        default = normalize(feed_lang)
+    elif feed_lang and (code := known(feed_lang)):
+        default = code
     else:
         default = agency[0] if agency else "en"
     codes = {*agency, *translations} - {default}
@@ -82,4 +104,5 @@ def feed_languages(
         default=default,
         offered=(default, *sorted(codes - readings)),
         readings=tuple(sorted(readings)),
+        unknown=unknown,
     )

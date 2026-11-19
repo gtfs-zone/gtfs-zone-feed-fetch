@@ -41,7 +41,7 @@ from gtfs_zone_feed_fetch.service import service_range
 
 # Bumped when `scan` or `feed_facts` would give a different document for the
 # same zip, so stored facts are computed again.
-FACTS_VERSION = 1
+FACTS_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +54,7 @@ class Summary:
     trips: int
     start: date | None
     end: date | None
-    # None when the feed's language codes cannot be read.
+    # None when feed_lang is mul with no other language to go by.
     languages: FeedLanguages | None
 
 
