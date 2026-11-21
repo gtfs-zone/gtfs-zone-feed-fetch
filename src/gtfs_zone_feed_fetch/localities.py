@@ -17,7 +17,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import shapely
-from pyarrow.fs import FileSystem
+from pyarrow.fs import FileSystem, S3FileSystem
 
 ATTRIBUTION = (
     "Municipalities: Overture Maps Foundation, from OpenStreetMap contributors (ODbL)"
@@ -41,6 +41,21 @@ class Localities:
     def __init__(self, path: Path | str, filesystem: FileSystem | None = None) -> None:
         self.path = str(path)
         self.filesystem = filesystem
+
+    @classmethod
+    def s3(
+        cls, path: str, endpoint: str, access_key: str, secret_key: str, region: str
+    ) -> "Localities":
+        """The file at `path` (`<bucket>/<key>`) on an S3 endpoint, with the
+        bucket in the path (Garage)."""
+        filesystem = S3FileSystem(
+            access_key=access_key,
+            secret_key=secret_key,
+            region=region,
+            endpoint_override=endpoint,
+            force_virtual_addressing=False,
+        )
+        return cls(path, filesystem)
 
     def containing(
         self, points: Sequence[tuple[float, float]]
