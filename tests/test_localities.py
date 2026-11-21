@@ -2,7 +2,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import shapely
 
-from gtfs_zone_feed_fetch.localities import Localities, Locality
+from gtfs_zone_feed_fetch.localities import Localities, Locality, groups_holding
 from gtfs_zone_feed_fetch.places import Located, place_tags
 
 
@@ -70,3 +70,16 @@ def test_municipalities_by_stop_times_with_english_names():
 
 def test_no_municipalities_without_localities():
     assert "municipalities" not in place_tags([station(1)])
+
+
+def test_only_row_groups_holding_a_station_are_read(tmp_path):
+    localities = write_localities(
+        tmp_path / "l.parquet",
+        [
+            ("荒川区", "Arakawa", "JP", shapely.box(139.7, 35.7, 139.8, 35.8)),
+            ("Boston", None, "US", shapely.box(-71.2, 42.2, -71.0, 42.4)),
+        ],
+    )
+    source = pq.ParquetFile(localities.path)
+    tree = shapely.STRtree(shapely.points([139.75], [35.75]))
+    assert groups_holding(source, tree) == [0]
