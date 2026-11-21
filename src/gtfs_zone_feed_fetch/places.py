@@ -6,7 +6,9 @@ and weighted by its stop times. From that pass:
 - `feed_place`: a region with at least `SHARE` of the stop times names the
   feed; otherwise a country with that share does; otherwise nothing does.
 - `feed_location`: the stations' bbox, stop-time weighted center and count.
-- `place_tags`: every country and region the stations are in, for search.
+- `place_tags`: every country and region the stations are in and, given
+  `Localities`, the `MUNICIPALITIES` localities with the most stop times, for
+  search.
 """
 
 from collections import Counter
@@ -15,9 +17,11 @@ from dataclasses import dataclass
 
 import reverse_geocode
 
+from gtfs_zone_feed_fetch.localities import Localities, Locality
 from gtfs_zone_feed_fetch.reader import Stop
 
 SHARE = 0.8
+MUNICIPALITIES = 25
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +47,8 @@ class Located:
     region: str
     country: str
     country_code: str
+    # The localities the station is in; empty when none were looked up.
+    localities: tuple[Locality, ...] = ()
 
 
 def station_weights(
@@ -65,13 +71,16 @@ def station_weights(
     return weights
 
 
-def locate(weights: Mapping[tuple[float, float], int]) -> list[Located]:
+def locate(
+    weights: Mapping[tuple[float, float], int], localities: Localities | None = None
+) -> list[Located]:
     """Every located station with stop times, reverse-geocoded, from
-    `station_weights`."""
+    `station_weights`, with the localities it is in when `localities` is given."""
     points = list(weights)
     if not points:
         return []
     found = reverse_geocode.search(points)
+    within = localities.containing(points) if localities else [()] * len(points)
     return [
         Located(
             lat=lat,
@@ -80,8 +89,9 @@ def locate(weights: Mapping[tuple[float, float], int]) -> list[Located]:
             region=place.get("state", ""),
             country=place["country"],
             country_code=place["country_code"],
+            localities=inside,
         )
-        for (lat, lon), place in zip(points, found, strict=True)
+        for (lat, lon), place, inside in zip(points, found, within, strict=True)
     ]
 
 
@@ -148,14 +158,28 @@ def ranked(weights: Counter[str]) -> list[str]:
 
 def place_tags(stations: list[Located]) -> dict[str, list[str]]:
     """The countries and regions the stations are in, each by stop times, most
-    first."""
+    first, and the names of the `MUNICIPALITIES` localities with the most stop
+    times, each name then its English name, when localities were looked up."""
     countries: Counter[str] = Counter()
     regions: Counter[str] = Counter()
+    localities: Counter[Locality] = Counter()
     for s in stations:
         countries[s.country] += s.weight
         if s.region:
             regions[s.region] += s.weight
-    return {"countries": ranked(countries), "regions": ranked(regions)}
+        for locality in s.localities:
+            localities[locality] += s.weight
+    tags = {"countries": ranked(countries), "regions": ranked(regions)}
+    if localities:
+        top = sorted(localities.items(), key=lambda i: (-i[1], i[0].name))
+        names = (
+            name
+            for locality, _ in top[:MUNICIPALITIES]
+            for name in (locality.name, locality.name_en)
+            if name
+        )
+        tags["municipalities"] = list(dict.fromkeys(names))
+    return tags
 
 
 def place_label(

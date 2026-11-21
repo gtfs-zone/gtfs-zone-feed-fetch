@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gtfs_zone_feed_fetch.languages import FeedLanguages, feed_languages
+from gtfs_zone_feed_fetch.localities import Localities
 from gtfs_zone_feed_fetch.places import (
     Located,
     feed_location,
@@ -123,7 +124,9 @@ def feed_facts(
     return facts
 
 
-def scan_archive(archive: Archive) -> tuple[Summary, list[Located]]:
+def scan_archive(
+    archive: Archive, localities: Localities | None = None
+) -> tuple[Summary, list[Located]]:
     """The summary and located stations of every route, trip and stop time."""
     if missing := archive.missing():
         raise MissingFiles(f"GTFS zip is missing {', '.join(missing)}")
@@ -175,14 +178,15 @@ def scan_archive(archive: Archive) -> tuple[Summary, list[Located]]:
         end=end,
         languages=languages,
     )
-    return summary, locate(station_weights(stops, stop_times))
+    return summary, locate(station_weights(stops, stop_times), localities)
 
 
-def scan(path: Path) -> dict[str, Any]:
-    """The facts of the whole zip at `path`. Raises MissingFiles, or the
-    error of a member that cannot be read."""
+def scan(path: Path, localities: Localities | None = None) -> dict[str, Any]:
+    """The facts of the whole zip at `path`, with municipality tags when
+    `localities` is given. Raises MissingFiles, or the error of a member that
+    cannot be read."""
     with path.open("rb") as handle:
         size, sha256 = zip_digest(handle)
         with open_zip(handle) as raw:
-            summary, stations = scan_archive(Archive(raw))
+            summary, stations = scan_archive(Archive(raw), localities)
     return feed_facts(size, sha256, summary, False, stations)
