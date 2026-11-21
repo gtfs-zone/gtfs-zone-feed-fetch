@@ -1,3 +1,11 @@
+## v0.2.0 (2026-11-22)
+
+### Feat
+
+- **localities**: Localities.s3 for a file in an S3 bucket
+- **localities**: read only the row groups whose bounds hold a station, from a local file or a pyarrow filesystem
+- **places**: municipality place tags from Overture localities containing each station
+
 ## v0.1.1 (2026-11-19)
 
 ### Fix
