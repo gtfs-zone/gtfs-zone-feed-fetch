@@ -141,13 +141,21 @@ def overture_source(release: str) -> str:
     )
 
 
-def build(source: str, out: Path | str, workdir: Path | str | None = None) -> int:
+def build(
+    source: str,
+    out: Path | str,
+    workdir: Path | str | None = None,
+    memory_limit: str | None = None,
+) -> int:
     """Write the locality file to `out` from Overture `division_area` parquet
     at `source` (local or `s3://`) and return its row count. duckdb (the
-    `localities` extra) keeps its extensions and spill files in `workdir`."""
+    `localities` extra) keeps its extensions and spill files in `workdir` and
+    stays under `memory_limit` (duckdb syntax, `4GB`) when given."""
     import duckdb
 
     con = duckdb.connect()
+    if memory_limit is not None:
+        con.execute(f"SET memory_limit = '{memory_limit}'")
     if workdir is not None:
         con.execute(f"SET extension_directory = '{Path(workdir) / 'duckdb'}'")
         con.execute(f"SET temp_directory = '{Path(workdir) / 'duckdb-tmp'}'")
