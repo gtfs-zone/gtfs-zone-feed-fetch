@@ -1,3 +1,9 @@
+## v0.4.0 (2026-11-22)
+
+### Feat
+
+- **localities**: build takes a duckdb memory_limit
+
 ## v0.3.0 (2026-11-22)
 
 ### Feat
