@@ -1,3 +1,9 @@
+## v0.3.0 (2026-11-22)
+
+### Feat
+
+- **localities**: build and latest_overture_release in the library, duckdb as the localities extra, S3 scheme from the endpoint
+
 ## v0.2.0 (2026-11-22)
 
 ### Feat
