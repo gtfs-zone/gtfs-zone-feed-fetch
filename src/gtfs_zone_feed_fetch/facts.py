@@ -42,8 +42,9 @@ from gtfs_zone_feed_fetch.reader import (
 from gtfs_zone_feed_fetch.service import service_range
 
 # Bumped when `scan` or `feed_facts` would give a different document for the
-# same zip, so stored facts are computed again.
-FACTS_VERSION = 3
+# same zip, so stored facts are computed again. 4: municipality tags when
+# `scan` is given localities.
+FACTS_VERSION = 4
 
 
 @dataclass(frozen=True, slots=True)
