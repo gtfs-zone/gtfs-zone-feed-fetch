@@ -1,3 +1,9 @@
+## v0.6.0 (2026-11-22)
+
+### Feat
+
+- **facts**: FACTS_VERSION 4, facts recomputed with municipality tags
+
 ## v0.5.0 (2026-11-22)
 
 ### Feat
