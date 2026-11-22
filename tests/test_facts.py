@@ -115,3 +115,55 @@ def test_stop_times_count_for_parent_stations(scanned):
     facts = scanned(make_zip(files))
     assert facts["location"]["stations"] == 1
     assert facts["location"]["center"] == [42.1, -73.1]
+
+
+def _rows_reversed(body: str) -> str:
+    header, *rows = body.splitlines()
+    return "\n".join([header, *reversed(rows)]) + "\n"
+
+
+def _columns_reversed(body: str) -> str:
+    lines = [line.split(",")[::-1] for line in body.splitlines()]
+    return "\n".join(",".join(line) for line in lines) + "\n"
+
+
+def test_cleaned_hash_ignores_packaging(scanned):
+    files = fixture_files("branching")
+    base = scanned(make_zip(files))["cleanedHash"]
+    assert len(base) == 64
+
+    reordered = {name: _rows_reversed(body) for name, body in files.items()}
+    assert scanned(make_zip(reordered))["cleanedHash"] == base
+
+    swapped = dict(files, **{"stops.txt": _columns_reversed(files["stops.txt"])})
+    assert scanned(make_zip(swapped))["cleanedHash"] == base
+
+    crlf = {name: "﻿" + body.replace("\n", "\r\n") for name, body in files.items()}
+    assert scanned(make_zip(crlf))["cleanedHash"] == base
+
+    with_info = make_zip(files | {"feed_info.txt": FEED_INFO})
+    assert scanned(with_info)["cleanedHash"] == base
+
+    folder = make_zip({f"gtfs/{name}": body for name, body in files.items()})
+    assert scanned(folder)["cleanedHash"] == base
+
+
+def test_cleaned_hash_sees_every_table(scanned):
+    files = fixture_files("branching")
+    base = scanned(make_zip(files))["cleanedHash"]
+
+    shapes = "shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence\ns1,42.0,-73.0,1\n"
+    with_shapes = scanned(make_zip(files | {"shapes.txt": shapes}))["cleanedHash"]
+    assert with_shapes != base
+    moved = shapes.replace("42.0", "42.1")
+    assert (
+        scanned(make_zip(files | {"shapes.txt": moved}))["cleanedHash"] != with_shapes
+    )
+
+    header, first, *rest = files["stop_times.txt"].splitlines()
+    doubled = "\n".join([header, first, first, *rest]) + "\n"
+    changed = scanned(make_zip(files | {"stop_times.txt": doubled}))["cleanedHash"]
+    assert changed != base
+
+    empty_shapes = scanned(make_zip(files | {"shapes.txt": "shape_id\n"}))
+    assert empty_shapes["cleanedHash"] == base

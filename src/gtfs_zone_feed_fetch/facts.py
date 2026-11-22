@@ -14,6 +14,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from gtfs_zone_feed_fetch.cleaned import Cleaned
 from gtfs_zone_feed_fetch.languages import FeedLanguages, feed_languages
 from gtfs_zone_feed_fetch.localities import Localities
 from gtfs_zone_feed_fetch.places import (
@@ -42,7 +43,7 @@ from gtfs_zone_feed_fetch.service import service_range
 
 # Bumped when `scan` or `feed_facts` would give a different document for the
 # same zip, so stored facts are computed again.
-FACTS_VERSION = 2
+FACTS_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,10 +75,11 @@ def feed_facts(
     summary: Summary,
     filtered: bool,
     stations: list[Located],
+    cleaned_hash: str = "",
 ) -> dict[str, Any]:
     """Size, hash, feed_info, service range, agencies, counts, languages and
     location, with `stations` the feed's located stations. `filtered` marks
-    counts taken after a route filter."""
+    counts taken after a route filter; `cleaned_hash` is written when given."""
     start, end = summary.start, summary.end
     facts: dict[str, Any] = {
         "bytes": size,
@@ -98,6 +100,8 @@ def feed_facts(
         "routeTypes": sorted(summary.route_types),
         "filtered": filtered,
     }
+    if cleaned_hash:
+        facts["cleanedHash"] = cleaned_hash
     if languages := summary.languages:
         facts["languages"] = {
             "default": languages.default,
@@ -182,11 +186,13 @@ def scan_archive(
 
 
 def scan(path: Path, localities: Localities | None = None) -> dict[str, Any]:
-    """The facts of the whole zip at `path`, with municipality tags when
-    `localities` is given. Raises MissingFiles, or the error of a member that
-    cannot be read."""
+    """The facts of the whole zip at `path`, with its cleaned hash, and with
+    municipality tags when `localities` is given. Raises MissingFiles, or the
+    error of a member that cannot be read."""
     with path.open("rb") as handle:
         size, sha256 = zip_digest(handle)
         with open_zip(handle) as raw:
-            summary, stations = scan_archive(Archive(raw), localities)
-    return feed_facts(size, sha256, summary, False, stations)
+            archive = Archive(raw, Cleaned())
+            summary, stations = scan_archive(archive, localities)
+            cleaned_hash = archive.cleaned_hash()
+    return feed_facts(size, sha256, summary, False, stations, cleaned_hash)

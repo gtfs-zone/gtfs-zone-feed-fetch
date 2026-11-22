@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import BinaryIO
 
+from gtfs_zone_feed_fetch.cleaned import Cleaned
+
 type ZipSource = bytes | BinaryIO
 
 REQUIRED_FILES = ("agency", "routes", "trips", "stop_times", "stops")
@@ -93,10 +95,14 @@ def open_zip(source: ZipSource) -> zipfile.ZipFile:
 
 
 class Archive:
-    """GTFS members by file name, tolerating one wrapping directory."""
+    """GTFS members by file name, tolerating one wrapping directory. With
+    `cleaned`, every complete read of a hashed table also digests it."""
 
-    def __init__(self, archive: zipfile.ZipFile) -> None:
+    def __init__(
+        self, archive: zipfile.ZipFile, cleaned: Cleaned | None = None
+    ) -> None:
         self.archive = archive
+        self.cleaned = cleaned
         self.members: dict[str, str] = {}
         for name in sorted(archive.namelist(), key=lambda n: n.count("/")):
             if name.startswith("__MACOSX/") or not name.endswith(".txt"):
@@ -128,12 +134,36 @@ class Archive:
             header = [name.strip() for name in next(reader, [])]
             index = {name: i for i, name in enumerate(header)}
             picks = [index.get(column) for column in columns]
+            digest = self.cleaned.start(table, header) if self.cleaned else None
             for row in reader:
                 if not row:
                     continue
+                if digest is not None:
+                    digest.add(row)
                 yield tuple(
                     row[i] if i is not None and i < len(row) else "" for i in picks
                 )
+            if digest is not None:
+                digest.done = True
+
+    def cleaned_hash(self) -> str:
+        """The cleaned hash, reading each hashed table no earlier read
+        digested. Needs `cleaned`."""
+        if self.cleaned is None:
+            raise ValueError("Archive was opened without cleaned")
+        for table in self.cleaned.pending(set(self.members)):
+            with self.archive.open(self.members[table]) as raw:
+                reader = csv.reader(io.TextIOWrapper(raw, encoding="utf-8-sig"))
+                header = [name.strip() for name in next(reader, [])]
+                digest = self.cleaned.start(table, header)
+                if digest is None:
+                    continue
+                add = digest.add
+                for row in reader:
+                    if row:
+                        add(row)
+                digest.done = True
+        return self.cleaned.hexdigest()
 
 
 def read_agencies(archive: Archive) -> dict[str, Agency]:
