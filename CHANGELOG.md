@@ -1,3 +1,9 @@
+## v0.5.0 (2026-11-22)
+
+### Feat
+
+- **facts**: cleanedHash in scan, an order-independent hash of every GTFS table but feed_info; FACTS_VERSION 3
+
 ## v0.4.0 (2026-11-22)
 
 ### Feat
