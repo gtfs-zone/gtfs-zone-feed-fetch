@@ -13,7 +13,8 @@ reads from it.
   place tags of a zip, in one streaming pass (`scan`) or from a parsed feed
   (`Summary`).
 - `localities`: the Overture localities containing each station, from a file
-  written by `scripts/localities.py`, for the municipality place tags.
+  written by `build` (the `localities` extra, or `scripts/localities.py`),
+  for the municipality place tags.
 - `pool`: run a function over many items in memory-capped worker processes.
 
 ```toml

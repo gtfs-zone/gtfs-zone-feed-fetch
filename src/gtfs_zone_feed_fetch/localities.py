@@ -1,7 +1,7 @@
 """The localities containing a feed's stations, for the municipality place tags.
 
 The data is Overture Maps' `division_area` rows of subtype `locality`, derived
-from OpenStreetMap, in a parquet file written by `scripts/localities.py`: one
+from OpenStreetMap, in a parquet file written by `build`: one
 row per locality with its primary and English names, country, bbox and WKB
 geometry, sorted along a Hilbert curve so each row group covers a small area.
 Only row groups whose bounds hold a station are read, one at a time, and only
@@ -17,11 +17,18 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import shapely
-from pyarrow.fs import FileSystem, S3FileSystem
+from pyarrow.fs import FileSelector, FileSystem, FileType, S3FileSystem
 
 ATTRIBUTION = (
     "Municipalities: Overture Maps Foundation, from OpenStreetMap contributors (ODbL)"
 )
+
+# Overture's public bucket: one prefix per release under `release/`.
+OVERTURE_BUCKET = "overturemaps-us-west-2"
+OVERTURE_REGION = "us-west-2"
+# Rows per row group: a bbox filter skips whole groups by their min / max stats.
+ROW_GROUP = 2000
+WORLD = "{'min_x': -180, 'min_y': -90, 'max_x': 180, 'max_y': 90}::BOX_2D"
 
 BOUNDS = ("xmin", "ymin", "xmax", "ymax")
 COLUMNS = ["name", "name_en", "country", *BOUNDS, "geometry"]
@@ -53,6 +60,7 @@ class Localities:
             secret_key=secret_key,
             region=region,
             endpoint_override=endpoint,
+            scheme="http" if endpoint.startswith("http://") else "https",
             force_virtual_addressing=False,
         )
         return cls(path, filesystem)
@@ -115,3 +123,49 @@ def rows_holding(
     )
     inside = shapely.intersects_xy(shapes[at], lons[points], lats[points])
     return list(zip(rows[inside].tolist(), points[inside].tolist(), strict=True))
+
+
+def latest_overture_release(filesystem: FileSystem | None = None) -> str:
+    """The greatest release name under Overture's `release/` prefix (names are
+    dates, `2026-11-18.0`), read anonymously unless `filesystem` is given."""
+    filesystem = filesystem or S3FileSystem(anonymous=True, region=OVERTURE_REGION)
+    infos = filesystem.get_file_info(FileSelector(f"{OVERTURE_BUCKET}/release"))
+    return max(i.base_name for i in infos if i.type == FileType.Directory)
+
+
+def overture_source(release: str) -> str:
+    """The glob of a release's `division_area` parquet files."""
+    return (
+        f"s3://{OVERTURE_BUCKET}/release/{release}"
+        "/theme=divisions/type=division_area/*.parquet"
+    )
+
+
+def build(source: str, out: Path | str, workdir: Path | str | None = None) -> int:
+    """Write the locality file to `out` from Overture `division_area` parquet
+    at `source` (local or `s3://`) and return its row count. duckdb (the
+    `localities` extra) keeps its extensions and spill files in `workdir`."""
+    import duckdb
+
+    con = duckdb.connect()
+    if workdir is not None:
+        con.execute(f"SET extension_directory = '{Path(workdir) / 'duckdb'}'")
+        con.execute(f"SET temp_directory = '{Path(workdir) / 'duckdb-tmp'}'")
+    for extension in ("httpfs", "spatial"):
+        con.install_extension(extension)
+        con.load_extension(extension)
+    con.execute(f"SET s3_region = '{OVERTURE_REGION}'")
+    query = f"""
+        SELECT names.primary AS name, names.common['en'] AS name_en, country,
+            bbox.xmin AS xmin, bbox.ymin AS ymin, bbox.xmax AS xmax, bbox.ymax AS ymax,
+            ST_AsWKB(geometry::GEOMETRY) AS geometry
+        FROM read_parquet('{source}')
+        WHERE subtype = 'locality' AND class = 'land'
+        ORDER BY ST_Hilbert(ST_Centroid(geometry::GEOMETRY), {WORLD})
+    """
+    con.execute(
+        f"COPY ({query}) TO '{out}'"
+        f" (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE {ROW_GROUP})"
+    )
+    (rows,) = con.execute(f"SELECT count(*) FROM '{out}'").fetchone()
+    return rows

@@ -1,8 +1,14 @@
 import pyarrow as pa
 import pyarrow.parquet as pq
 import shapely
+from pyarrow.fs import LocalFileSystem, SubTreeFileSystem
 
-from gtfs_zone_feed_fetch.localities import Localities, Locality, groups_holding
+from gtfs_zone_feed_fetch.localities import (
+    Localities,
+    Locality,
+    groups_holding,
+    latest_overture_release,
+)
 from gtfs_zone_feed_fetch.places import Located, place_tags
 
 
@@ -83,3 +89,12 @@ def test_only_row_groups_holding_a_station_are_read(tmp_path):
     source = pq.ParquetFile(localities.path)
     tree = shapely.STRtree(shapely.points([139.75], [35.75]))
     assert groups_holding(source, tree) == [0]
+
+
+def test_latest_overture_release_is_the_greatest_directory(tmp_path):
+    release = tmp_path / "overturemaps-us-west-2" / "release"
+    for name in ("2026-09-17.0", "2026-11-18.0", "2026-10-22.1"):
+        (release / name).mkdir(parents=True)
+    (release / "2027-readme.txt").write_text("")
+    filesystem = SubTreeFileSystem(str(tmp_path), LocalFileSystem())
+    assert latest_overture_release(filesystem) == "2026-11-18.0"
