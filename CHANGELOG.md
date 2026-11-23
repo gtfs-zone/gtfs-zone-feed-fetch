@@ -1,3 +1,9 @@
+## v0.7.0 (2026-11-23)
+
+### Feat
+
+- **store**: urls.normalize_url, the index key, and store.lookup / stored_zip for readers of the index
+
 ## v0.6.0 (2026-11-22)
 
 ### Feat
