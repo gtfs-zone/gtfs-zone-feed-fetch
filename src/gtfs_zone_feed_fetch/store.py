@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from gtfs_zone_feed_fetch.urls import normalize_url
+
 PREFIX = "gtfs/"
 INDEX_KEY = "gtfs/index.json"
 ZIP_CONTENT_TYPE = "application/zip"
@@ -74,6 +76,18 @@ def parse_index(body: bytes) -> dict[str, Stored]:
     """The index by normalized URL."""
     urls = json.loads(body).get("urls", {})
     return {key: from_json(entry) for key, entry in urls.items()}
+
+
+def lookup(index: dict[str, Stored], url: str) -> Stored | None:
+    """The index entry for a download URL as any catalog spells it."""
+    return index.get(normalize_url(url))
+
+
+def stored_zip(entry: Stored | None) -> str:
+    """The key of the entry's stored zip, else ""."""
+    if entry is None or entry.kind != "zip" or not zip_sha256(entry.key):
+        return ""
+    return entry.key
 
 
 def index_body(

@@ -7,7 +7,9 @@ reads from it.
 - `fetch`: a conditional GET streamed to a temp file, hashed on the way.
 - `sniff`: what a body is from its first bytes.
 - `store`: the schedule bucket's layout (`gtfs/<sha256>.zip`,
-  `gtfs/<sha256>.facts.json`, `gtfs/index.json`).
+  `gtfs/<sha256>.facts.json`, `gtfs/index.json`) and `lookup` of a URL in
+  the index.
+- `urls`: `normalize_url`, the key the index is keyed by.
 - `zipfacts`: what a zip's central directory says.
 - `facts`: feed_info, service range, agencies, counts, languages, location and
   place tags of a zip, in one streaming pass (`scan`) or from a parsed feed
