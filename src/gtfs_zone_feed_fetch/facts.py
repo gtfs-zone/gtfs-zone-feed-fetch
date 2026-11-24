@@ -3,8 +3,8 @@ languages and where it runs.
 
 `feed_facts` turns a `Summary` into the facts document. A caller that has
 already parsed the feed fills the summary from it; `scan` fills it from the
-whole zip in one streaming pass, keeping a count per stop and nothing per trip,
-so the largest feeds fit in a few hundred MB."""
+whole zip in one streaming pass, keeping a count per stop, and per trip its
+agency and its interned stop pattern for the agency fingerprints."""
 
 import hashlib
 import io
@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gtfs_zone_feed_fetch.cleaned import Cleaned
+from gtfs_zone_feed_fetch.fingerprint import FeedFingerprint, Fingerprinter
 from gtfs_zone_feed_fetch.languages import FeedLanguages, feed_languages
 from gtfs_zone_feed_fetch.localities import Localities
 from gtfs_zone_feed_fetch.places import (
@@ -131,15 +132,23 @@ def feed_facts(
 
 def scan_archive(
     archive: Archive, localities: Localities | None = None
-) -> tuple[Summary, list[Located]]:
-    """The summary and located stations of every route, trip and stop time."""
+) -> tuple[Summary, list[Located], FeedFingerprint]:
+    """The summary, located stations and agency fingerprints of every route,
+    trip and stop time, reading stop_times once."""
     if missing := archive.missing():
         raise MissingFiles(f"GTFS zip is missing {', '.join(missing)}")
 
+    stops = read_stops(archive)
+    agencies = read_agencies(archive)
+    prints = Fingerprinter(stops, agencies)
+
     routes = 0
     route_types: set[int] = set()
-    for (route_type,) in archive.values("routes", ("route_type",)):
+    for route_type, route_id, agency_id in archive.values(
+        "routes", ("route_type", "route_id", "agency_id")
+    ):
         routes += 1
+        prints.add_route(route_id, agency_id)
         try:
             value = parse_int(route_type)
         except ValueError:
@@ -149,15 +158,19 @@ def scan_archive(
 
     trips = 0
     service_ids: set[str] = set()
-    for (service_id,) in archive.values("trips", ("service_id",)):
+    for service_id, trip_id, route_id in archive.values(
+        "trips", ("service_id", "trip_id", "route_id")
+    ):
         trips += 1
         service_ids.add(service_id)
+        prints.add_trip(trip_id, route_id)
 
     stop_times: Counter[str] = Counter(
-        stop_id for (stop_id,) in archive.values("stop_times", ("stop_id",))
+        prints.trace(
+            archive.values("stop_times", ("trip_id", "stop_id", "stop_sequence"))
+        )
     )
-    stops = read_stops(archive)
-    agencies = read_agencies(archive)
+    fingerprint = prints.finish()
     feed_info = read_feed_info(archive)
     start, end = service_range(
         read_calendars(archive, service_ids),
@@ -183,7 +196,8 @@ def scan_archive(
         end=end,
         languages=languages,
     )
-    return summary, locate(station_weights(stops, stop_times), localities)
+    stations = locate(station_weights(stops, stop_times), localities)
+    return summary, stations, fingerprint
 
 
 def scan(path: Path, localities: Localities | None = None) -> dict[str, Any]:
@@ -194,6 +208,6 @@ def scan(path: Path, localities: Localities | None = None) -> dict[str, Any]:
         size, sha256 = zip_digest(handle)
         with open_zip(handle) as raw:
             archive = Archive(raw, Cleaned())
-            summary, stations = scan_archive(archive, localities)
+            summary, stations, _ = scan_archive(archive, localities)
             cleaned_hash = archive.cleaned_hash()
     return feed_facts(size, sha256, summary, False, stations, cleaned_hash)

@@ -1,0 +1,4 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+1,CB,1,Main Street,3
+2,CB,2,Main Street and Hill,3
+RED,MR,,Red Line,1

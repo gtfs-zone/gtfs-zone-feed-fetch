@@ -1,0 +1,3 @@
+agency_id,agency_name,agency_url,agency_timezone
+CB,City Bus,https://bus.example,America/New_York
+MR,Metro Rail,https://rail.example,America/New_York

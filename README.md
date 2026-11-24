@@ -14,6 +14,9 @@ reads from it.
 - `facts`: feed_info, service range, agencies, counts, languages, location and
   place tags of a zip, in one streaming pass (`scan`) or from a parsed feed
   (`Summary`).
+- `fingerprint`: per agency the cells of a global 150 m grid its trips stop
+  in and the edges between consecutive cells, from `scan_archive`, and
+  `containment` of one agency's edges in another's.
 - `localities`: the Overture localities containing each station, from a file
   written by `build` (the `localities` extra, or `scripts/localities.py`),
   for the municipality place tags.
