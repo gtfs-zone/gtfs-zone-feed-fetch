@@ -1,11 +1,16 @@
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
 from conftest import fixture_files, make_zip
 
-from gtfs_zone_feed_fetch.facts import scan_archive
+from gtfs_zone_feed_fetch.facts import scan, scan_archive, scan_fingerprinted
 from gtfs_zone_feed_fetch.fingerprint import (
     AgencyFingerprint,
     FeedFingerprint,
     cell,
     containment,
+    from_parquet,
+    to_parquet,
 )
 from gtfs_zone_feed_fetch.reader import Archive, open_zip
 
@@ -118,3 +123,36 @@ def test_cell_outside_range():
     assert cell(91, 10) is None
     assert cell(10, -181) is None
     assert cell(-90, -180) == 0
+
+
+def test_parquet_round_trip():
+    feed = fingerprint(fixture_files("fingerprint-city"))
+    body = to_parquet(feed)
+    assert from_parquet(body) == feed
+    table = pq.read_table(pa.BufferReader(body))
+    assert table.schema.metadata[b"cell_metres"] == b"150"
+    bus = table.to_pylist()[0]
+    assert bus["cells"] == sorted(bus["cells"])
+    assert list(zip(bus["edge_from"], bus["edge_to"], strict=True)) == sorted(
+        zip(bus["edge_from"], bus["edge_to"], strict=True)
+    )
+
+
+def test_parquet_of_another_version_is_refused():
+    table = pq.read_table(
+        pa.BufferReader(
+            to_parquet(fingerprint(fixture_files("fingerprint-no-agency-id")))
+        )
+    )
+    sink = pa.BufferOutputStream()
+    pq.write_table(table.replace_schema_metadata({"version": "0"}), sink)
+    with pytest.raises(ValueError, match="version"):
+        from_parquet(sink.getvalue().to_pybytes())
+
+
+def test_scan_fingerprinted(tmp_path):
+    path = tmp_path / "feed.zip"
+    path.write_bytes(make_zip(fixture_files("fingerprint-city")))
+    facts, feed = scan_fingerprinted(path)
+    assert facts == scan(path)
+    assert feed == fingerprint(fixture_files("fingerprint-city"))

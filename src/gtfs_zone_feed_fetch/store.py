@@ -1,5 +1,6 @@
 """The schedule bucket's layout: ``gtfs/<sha256>.zip`` (or ``.body`` for a small
-non-zip body), ``gtfs/<sha256>.facts.json`` beside each zip, and
+non-zip body), ``gtfs/<sha256>.facts.json`` and
+``gtfs/<sha256>.fingerprint.parquet`` beside each zip, and
 ``gtfs/index.json`` mapping each normalized URL to its latest body. No I/O."""
 
 import json
@@ -116,6 +117,11 @@ def object_key(sha256: str, kind: str, size: int, body_max_bytes: int) -> str:
 def facts_key(sha256: str) -> str:
     """Where the facts of the zip with this sha256 are kept."""
     return f"{PREFIX}{sha256}.facts.json"
+
+
+def fingerprint_key(sha256: str) -> str:
+    """Where the agency fingerprints of the zip with this sha256 are kept."""
+    return f"{PREFIX}{sha256}.fingerprint.parquet"
 
 
 def zip_sha256(key: str) -> str:

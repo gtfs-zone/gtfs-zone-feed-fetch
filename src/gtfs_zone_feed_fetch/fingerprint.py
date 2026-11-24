@@ -5,15 +5,26 @@ times, so copies of a feed match whatever their service dates.
 The grid has rows of `CELL_METRES` in latitude and, within a row, columns of
 `CELL_METRES` at the row's centre, so every feed snaps to the same cells. A
 stop is placed at its parent station when it has one. A cell is an int,
-row << 32 | column; an edge is an int, cell << 64 | next cell."""
+row << 32 | column; an edge is an int, cell << 64 | next cell.
 
+`to_parquet` writes a feed's fingerprint as one row per agency: agency_id,
+name, its sorted cells, and its edges sorted as two aligned columns of start
+and end cells; the file's metadata holds `FINGERPRINT_VERSION`, the cell size
+and the reappearances."""
+
+import io
 import math
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from itertools import pairwise
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from gtfs_zone_feed_fetch.reader import Agency, Stop
 
+# Bumped when the same zip would give a different fingerprint file.
+FINGERPRINT_VERSION = 1
 CELL_METRES = 150
 METRES_PER_DEGREE = 111_320.0
 ROW_DEGREES = CELL_METRES / METRES_PER_DEGREE
@@ -194,3 +205,64 @@ class Fingerprinter:
             ),
             reappearances=self.reappearances,
         )
+
+
+SCHEMA = pa.schema(
+    [
+        ("agency_id", pa.string()),
+        ("name", pa.string()),
+        ("cells", pa.list_(pa.int64())),
+        ("edge_from", pa.list_(pa.int64())),
+        ("edge_to", pa.list_(pa.int64())),
+    ]
+)
+
+
+def to_parquet(fingerprint: FeedFingerprint) -> bytes:
+    """The fingerprint as a zstd parquet file."""
+    agencies = fingerprint.agencies
+    edges = [sorted(agency.edges) for agency in agencies]
+    table = pa.table(
+        {
+            "agency_id": [agency.agency_id for agency in agencies],
+            "name": [agency.name for agency in agencies],
+            "cells": [sorted(agency.cells) for agency in agencies],
+            "edge_from": [[edge >> 64 for edge in sorted_] for sorted_ in edges],
+            "edge_to": [[edge & CELL_MASK for edge in sorted_] for sorted_ in edges],
+        },
+        schema=SCHEMA.with_metadata(
+            {
+                "version": str(FINGERPRINT_VERSION),
+                "cell_metres": str(CELL_METRES),
+                "reappearances": str(fingerprint.reappearances),
+            }
+        ),
+    )
+    buffer = io.BytesIO()
+    pq.write_table(table, buffer, compression="zstd")
+    return buffer.getvalue()
+
+
+def from_parquet(body: bytes) -> FeedFingerprint:
+    """A fingerprint written by `to_parquet` of this `FINGERPRINT_VERSION`;
+    ValueError for another version."""
+    table = pq.read_table(io.BytesIO(body))
+    metadata = table.schema.metadata or {}
+    version = metadata.get(b"version", b"").decode()
+    if version != str(FINGERPRINT_VERSION):
+        raise ValueError(f"fingerprint version {version!r}, not {FINGERPRINT_VERSION}")
+    return FeedFingerprint(
+        agencies=tuple(
+            AgencyFingerprint(
+                agency_id=row["agency_id"],
+                name=row["name"],
+                cells=frozenset(row["cells"]),
+                edges=frozenset(
+                    start << 64 | end
+                    for start, end in zip(row["edge_from"], row["edge_to"], strict=True)
+                ),
+            )
+            for row in table.to_pylist()
+        ),
+        reappearances=int(metadata[b"reappearances"]),
+    )

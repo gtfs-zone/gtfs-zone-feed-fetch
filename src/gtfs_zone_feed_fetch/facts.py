@@ -204,10 +204,18 @@ def scan(path: Path, localities: Localities | None = None) -> dict[str, Any]:
     """The facts of the whole zip at `path`, with its cleaned hash, and with
     municipality tags when `localities` is given. Raises MissingFiles, or the
     error of a member that cannot be read."""
+    return scan_fingerprinted(path, localities)[0]
+
+
+def scan_fingerprinted(
+    path: Path, localities: Localities | None = None
+) -> tuple[dict[str, Any], FeedFingerprint]:
+    """`scan`'s facts and the zip's agency fingerprints, from the same pass."""
     with path.open("rb") as handle:
         size, sha256 = zip_digest(handle)
         with open_zip(handle) as raw:
             archive = Archive(raw, Cleaned())
-            summary, stations, _ = scan_archive(archive, localities)
+            summary, stations, fingerprint = scan_archive(archive, localities)
             cleaned_hash = archive.cleaned_hash()
-    return feed_facts(size, sha256, summary, False, stations, cleaned_hash)
+    facts = feed_facts(size, sha256, summary, False, stations, cleaned_hash)
+    return facts, fingerprint
