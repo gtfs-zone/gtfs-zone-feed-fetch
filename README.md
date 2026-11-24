@@ -7,7 +7,8 @@ reads from it.
 - `fetch`: a conditional GET streamed to a temp file, hashed on the way.
 - `sniff`: what a body is from its first bytes.
 - `store`: the schedule bucket's layout (`gtfs/<sha256>.zip`,
-  `gtfs/<sha256>.facts.json`, `gtfs/index.json`) and `lookup` of a URL in
+  `gtfs/<sha256>.facts.json`, `gtfs/<sha256>.fingerprint.parquet`,
+  `gtfs/index.json`) and `lookup` of a URL in
   the index.
 - `urls`: `normalize_url`, the key the index is keyed by.
 - `zipfacts`: what a zip's central directory says.
@@ -15,8 +16,9 @@ reads from it.
   place tags of a zip, in one streaming pass (`scan`) or from a parsed feed
   (`Summary`).
 - `fingerprint`: per agency the cells of a global 150 m grid its trips stop
-  in and the edges between consecutive cells, from `scan_archive`, and
-  `containment` of one agency's edges in another's.
+  in and the edges between consecutive cells, from `scan_archive` (or with
+  the facts from `scan_fingerprinted`), as a parquet file, and `containment`
+  of one agency's edges in another's.
 - `localities`: the Overture localities containing each station, from a file
   written by `build` (the `localities` extra, or `scripts/localities.py`),
   for the municipality place tags.
