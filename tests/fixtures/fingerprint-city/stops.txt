@@ -1,0 +1,10 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
+S1,First,42.35,-71.06,,
+S2,Second,42.35,-71.052,,
+S3,Third,42.35,-71.044,,
+S4,Fourth,42.35,-71.036,,
+S5,Hill,42.358,-71.052,,
+NORTH,North Station,42.366,-71.062,1,
+NORTH-1,North Station platform 1,42.3665,-71.0605,0,NORTH
+SOUTH,South Station,42.352,-71.055,1,
+SOUTH-1,South Station platform 1,42.3518,-71.0548,0,SOUTH

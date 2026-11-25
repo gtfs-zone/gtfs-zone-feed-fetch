@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from gtfs_zone_feed_fetch.store import (
     Stored,
     facts_key,
+    fingerprint_key,
     index_body,
     lookup,
     object_key,
@@ -35,6 +36,8 @@ def test_keys():
     assert object_key("abc", "html", 100, 100) == "gtfs/abc.body"
     assert object_key("abc", "html", 101, 100) == ""
     assert facts_key("abc") == "gtfs/abc.facts.json"
+    assert fingerprint_key("abc") == "gtfs/abc.fingerprint.parquet"
+    assert zip_sha256("gtfs/abc.fingerprint.parquet") == ""
     assert zip_sha256("gtfs/abc.zip") == "abc"
     assert zip_sha256("gtfs/abc.facts.json") == ""
     assert zip_sha256("gtfs/abc.body") == ""

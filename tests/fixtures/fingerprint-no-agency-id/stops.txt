@@ -1,0 +1,3 @@
+stop_id,stop_name,stop_lat,stop_lon
+A,Alpha,42.35,-71.06
+B,Bravo,42.35,-71.052

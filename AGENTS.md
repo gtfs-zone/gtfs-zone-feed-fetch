@@ -8,8 +8,9 @@ Python library shared by feed-catalog, timetable-sites and crimes. See
 - **Outputs are a contract**: sites' `content.json` and the catalog's
   `gtfs/<sha256>.facts.json` come from `feed_facts`. Bump `FACTS_VERSION`
   whenever the same zip would give a different document.
-- **Memory**: `scan` keeps a count per stop and nothing per trip. Keep it that
-  way; run it under `pool.run_all` with a cap.
+- **Memory**: `scan` keeps a count per stop and, per trip, only its agency and
+  its interned stop pattern for the fingerprints. Keep it that way; run it
+  under `pool.run_all` with a cap.
 - **Tests** run against no services: `respx` for HTTP, fixture zips built in
   `tests/conftest.py`.
 - **Commits**: Conventional Commits, enforced by the `commit-msg` hook. Never

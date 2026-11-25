@@ -1,0 +1,5 @@
+route_id,service_id,trip_id
+1,DAILY,out
+1,DAILY,back
+2,DAILY,hill
+RED,DAILY,red
