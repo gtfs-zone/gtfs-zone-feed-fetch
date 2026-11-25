@@ -79,7 +79,9 @@ class Localities:
             self.filesystem.open_input_file(self.path) if self.filesystem else self.path
         ) as source:
             for group in groups_holding(source, tree):
-                table = source.read_row_group(group, columns=COLUMNS)
+                # One thread: each Arrow thread's malloc arena reserves
+                # address space, and a group is small.
+                table = source.read_row_group(group, columns=COLUMNS, use_threads=False)
                 for row, point in rows_holding(table, tree, lats, lons):
                     name = table.column("name")[row].as_py() or ""
                     en = table.column("name_en")[row].as_py() or ""

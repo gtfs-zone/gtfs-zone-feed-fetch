@@ -32,3 +32,14 @@ def test_killed_worker_fails_alone():
     results = dict(run_all(work, items, workers=2))
     assert str(results["kill"]) == "BrokenProcessPool: worker died"
     assert all(results[item] == item.upper() for item in "abcdef")
+
+
+def arrow_pool(_):
+    import pyarrow as pa
+
+    return pa.default_memory_pool().backend_name
+
+
+def test_capped_worker_uses_system_arrow_pool():
+    results = dict(run_all(arrow_pool, ["a"], workers=2, max_bytes=3_000_000_000))
+    assert results["a"] == "system"
