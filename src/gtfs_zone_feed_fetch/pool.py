@@ -2,6 +2,7 @@
 so one oversized feed fails alone instead of taking the host down."""
 
 import multiprocessing
+import os
 import resource
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -13,8 +14,11 @@ class WorkerError(Exception):
 
 
 def limit_memory(max_bytes: int | None) -> None:
-    """Cap this process's address space; allocations past it raise MemoryError."""
+    """Cap this process's address space; allocations past it raise MemoryError.
+    Arrow's default pool, mimalloc, reserves a 1 GiB arena on first use, which
+    counts against the cap, so a capped worker uses the system allocator."""
     if max_bytes:
+        os.environ["ARROW_DEFAULT_MEMORY_POOL"] = "system"
         resource.setrlimit(resource.RLIMIT_AS, (max_bytes, max_bytes))
 
 
