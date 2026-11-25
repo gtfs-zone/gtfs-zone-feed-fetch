@@ -1,3 +1,10 @@
+## v0.8.0 (2026-11-25)
+
+### Feat
+
+- **fingerprint**: parquet file per zip at gtfs/<sha256>.fingerprint.parquet, scan_fingerprinted returns facts and fingerprint from one pass
+- **fingerprint**: per-agency cell and edge sets on a 150 m grid from scan_archive, containment with one-cell tolerance
+
 ## v0.7.0 (2026-11-23)
 
 ### Feat
